@@ -3,4 +3,6 @@ export interface StaffInviteJob {
   phone?: string;
   businessName: string;
   inviteLink: string;
+  role: string;
+  expiresAt: string;
 }

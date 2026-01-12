@@ -3,20 +3,29 @@ import { redisConnection } from "../config/redis";
 import { StaffInviteJob } from "../queues/types";
 import { EmailService } from "../services/email.service";
 import { WhatsAppService } from "../services/whatsapp.services";
+import { renderTemplate } from "../utils/emailTemplate";
 
 export const notificationWorker = new Worker(
   'notifications',
   async job => {
     if (job.name === 'staff-invite') {
-      const { email, businessName, inviteLink, phone } =
+      const { email, businessName, inviteLink, role, expiresAt, phone } =
         job.data as StaffInviteJob;
       
-      const html = `
-        <p>You have been invited to join <strong>${businessName}</strong>.</p>
-        <p><a href="${inviteLink}">Accept Invite</a></p>
-      `;
+      // const html = `
+      //   <p>You have been invited to join <strong>${businessName}</strong>.</p>
+      //   <p><a href="${inviteLink}">Accept Invite</a></p>
+      // `;
 
-      await EmailService.sendEmail(email, `${businessName} Invite`, html);
+      const html = renderTemplate('staffInvite.html', {
+        businessName,
+        inviteLink,
+        role,
+        // expiresAt: new Date(expiresAt).toDateString()
+        expiresAt
+      });
+
+      await EmailService.sendEmail(email, `You're invited to join ${businessName} Invite`, html);
 
       if (phone) {
         await WhatsAppService.sendMessage(
@@ -31,6 +40,8 @@ export const notificationWorker = new Worker(
         Business: ${businessName}
         To: ${email}
         Link: ${inviteLink}
+        Role: ${role}
+        ExpiresAt: ${expiresAt}
       `);
     }
   },

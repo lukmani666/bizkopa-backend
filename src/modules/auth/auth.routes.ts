@@ -163,7 +163,7 @@ router.post("/login", AuthController.login);
 
 /**
  * @swagger
- * /api/v1/auth/user-profile:
+ * /api/v1/auth/me:
  *   get:
  *     summary: Get authenticated user profile
  *     description: Returns the profile of the currently authenticated user using the JWT token.
@@ -211,7 +211,46 @@ router.post("/login", AuthController.login);
  *       401:
  *         description: Unauthorized – invalid or missing token
  */
-router.get("/user-profile", authMiddleware, AuthController.getProfile);
+router.get("/me", authMiddleware, AuthController.getProfile);
+
+/**
+ * @swagger
+ * /api/v1/auth/logout:
+ *   post:
+ *     summary: Logs out the currently authenticated user
+ *     description: Clears the HTTP-only authentication cookie and ends the user session.
+ *     tags:
+ *       - Auth
+ *     responses:
+ *       200:
+ *         description: Successfully logged out
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Logged out
+ *       401:
+ *         description: Unauthorized, user not logged in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Unauthorized
+ */
+router.post("/logout", AuthController.logout);
+
 
 export default router;
 

@@ -2,8 +2,9 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { BusinessStaffService } from "./business-staff.service";
 import BusinessStaff from './business-staff.model';
-import { BusinessService } from "../businesses/business.service";
 import { BusinessRole } from "./permissions";
+import { success } from "zod";
+import { RescoreRequest } from "aws-sdk/clients/kendraranking";
 
 export class BusinessStaffController {
   static async addStaff(req: Request, res: Response) {
@@ -27,9 +28,25 @@ export class BusinessStaffController {
 
     const staff = await BusinessStaffService.listStaff(businessId as any);
 
+    const mapped = staff.map((s: any) => ({
+      _id: s._id,
+      business_id: businessId,
+      user_id: s.user?._id,
+      email: s.user?.email ?? null,
+      role: s.role,
+      status: s.isActive ? 'active' : 'inactive',
+      joined_at: s.createdAt,
+      profile: {
+        full_name: 
+          s.user?.first_name && s.user?.last_name
+            ? `${s.user.first_name} ${s.user.last_name}`
+            : null,
+        avatar_url: null
+      }
+    }));
     return res.status(200).json({
       success: true,
-      data: staff
+      data: mapped
     });
   }
 
@@ -205,5 +222,67 @@ export class BusinessStaffController {
       message: 'Staff invite sent successfully',
       data: invite
     });
+  }
+
+  static async getInvites(req: Request, res: Response) {
+    const { businessId } = req.params;
+    const { status } = req.query;
+
+    const invites = await BusinessStaffService.getInvites(
+      businessId as any,
+      status as string
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: invites,
+    });
+  }
+
+  static async resendInvite(req: Request, res: Response) {
+    const { businessId, inviteId } = req.params;
+
+    await BusinessStaffService.resendInvite(
+      businessId as any,
+      inviteId as any
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Invitation resent successfully',
+    });
+  }
+
+  static async cancelInvite(req: Request, res: Response) {
+    const { businessId, inviteId } = req.params;
+
+    await BusinessStaffService.cancelInvite(
+      businessId as any,
+      inviteId as any
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Invitation cancelled',
+    })
+  }
+
+  static async validateInvite(req: Request, res: Response) {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invite token is required'
+      });
+    }
+
+    const data = await BusinessStaffService.validateInvite(token);
+
+    return res.status(200).json({
+      success: true,
+      // message: 'Invitation is valid',
+      data
+    })
   }
 }

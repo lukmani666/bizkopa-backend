@@ -21,9 +21,41 @@ export class BusinessService {
     return business;
   }
 
-  static async getUserBusiness(ownerId: Types.ObjectId) {
-    return Business.find({ owner: ownerId}).sort({ createdAt: -1});
+  // static async getUserBusiness(ownerId: Types.ObjectId) {
+  //   return Business.find({ owner: ownerId}).sort({ createdAt: -1});
+  // }
+
+  static async getUserBusiness(userId: Types.ObjectId) {
+
+    // Get all staff records for this user
+    const staffRecords = await BusinessStaff.find({
+      user: userId,
+      isActive: true
+    });
+
+    const businessIds = staffRecords.map((s) => s.business);
+
+    // Fetch businesses the user belongs to
+    const businesses = await Business.find({
+      _id: { $in: businessIds },
+      isActive: true
+    })
+    .populate('owner', 'email')
+    .sort({ createdAt: -1 });
+
+    // Attach role from staff records
+    return businesses.map((biz) => {
+      const staff = staffRecords.find(
+        (s) => String(s.business) === String(biz._id)
+      );
+
+      return {
+        ...biz.toObject(),
+        role: staff?.role || null
+      };
+    });
   }
+
 
   static async updateBusiness(
     businessId: string,
@@ -41,9 +73,21 @@ export class BusinessService {
     businessId: string,
     ownerId: Types.ObjectId
   ) {
-    return Business.findOneAndDelete({
+    // return Business.findOneAndDelete({
+    //   _id: businessId,
+    //   owner: ownerId
+    // });
+    const deleted = await Business.findOneAndDelete({
       _id: businessId,
       owner: ownerId
     });
+
+    if (deleted) {
+      await BusinessStaff.deleteMany({
+        business: businessId
+      })
+    }
+
+    return deleted;
   }
 }

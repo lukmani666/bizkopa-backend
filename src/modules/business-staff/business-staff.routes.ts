@@ -277,7 +277,7 @@ router.get(
   authMiddleware,
   BusinessOwnerMiddleware.requireBusinessOwner,
   BusinessStaffController.getStaffById
-)
+);
 
 /**
  * @swagger
@@ -367,6 +367,33 @@ router.post(
   authMiddleware,
   requireBusinessPermission(BusinessPermission.STAFF_INVITE),
   BusinessStaffController.inviteStaff
-)
+);
+
+router.get(
+  '/:businessId/invites',
+  authMiddleware,
+  requireBusinessPermission(BusinessPermission.STAFF_READ),
+  BusinessStaffController.getInvites
+);
+
+router.post(
+  '/:businessId/invites/:inviteId/resend',
+  authMiddleware,
+  requireBusinessPermission(BusinessPermission.STAFF_INVITE),
+  BusinessStaffController.resendInvite
+);
+
+router.patch(
+  '/:businessId/invites/:inviteId/cancel',
+  authMiddleware,
+  requireBusinessPermission(BusinessPermission.STAFF_INVITE),
+  BusinessStaffController.cancelInvite
+);
+
+router.get(
+  '/invites/validate',
+  BusinessStaffController.validateInvite
+);
+
 
 export default router;

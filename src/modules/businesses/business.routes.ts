@@ -141,7 +141,7 @@ router.delete('/:businessId', authMiddleware, BusinessController.deleteBusiness)
 
 /**
  * @swagger
- * /api/v1/businesses/{businessId}:
+ * /api/v1/business/{businessId}:
  *   get:
  *     summary: Get a single business by ID
  *     description: Retrieve a business owned by the authenticated user.

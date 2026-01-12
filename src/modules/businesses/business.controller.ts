@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { BusinessService } from './business.service';
 import Business from './business.model'
+import BusinessStaff from '../business-staff/business-staff.model';
 import mongoose from 'mongoose';
 
 export class BusinessController {
@@ -24,28 +25,107 @@ export class BusinessController {
     }
   }
 
+  // static async getMyBusiness(req: Request, res: Response) {
+  //   try {
+  //     const user = (req as any).user;
+
+  //     const businesses = await BusinessService.getUserBusiness(
+  //       user._id
+  //     )
+  //     return res.status(200).json({
+  //       success: true,
+  //       data: businesses
+  //     });
+  //   } catch (error) {
+  //     return res.status(500).json({
+  //       success: false,
+  //       message: "Failed to fetch bussinesses"
+  //     });
+  //   }
+  // }
+
   static async getMyBusiness(req: Request, res: Response) {
     try {
       const user = (req as any).user;
 
-      const businesses = await BusinessService.getUserBusiness(
-        user._id
-      )
+      const staffRecords = await BusinessStaff.find({
+        user: user._id,
+        isActive: true
+      })
+      .populate("business");
+
+      const businesses = staffRecords.map((staff) => {
+        const biz: any = staff.business;
+
+        return {
+          _id: biz._id,
+          owner: biz.owner,
+          name: biz.name,
+          industry: biz.industry,
+          phoneNumber: biz.phoneNumber,
+          email: biz.email,
+          address: biz.address,
+          isActive: biz.isActive,
+
+          // IMPORTANT – role comes from BusinessStaff
+          role: staff.role,
+          permissions: staff.permissions,
+          createdAt: biz.createdAt
+        };
+      });
+
       return res.status(200).json({
         success: true,
         data: businesses
       });
+
     } catch (error) {
       return res.status(500).json({
         success: false,
-        message: "Failed to fetch bussinesses"
+        message: "Failed to fetch businesses"
       });
     }
   }
 
+  // static async getBusinessById(req: Request, res: Response) {
+  //   try {
+  //     const { businessId } = req.params;
+
+  //     if (!mongoose.Types.ObjectId.isValid(businessId)) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: "Invalid business ID"
+  //       });
+  //     }
+
+  //     const business = await Business.findById(businessId)
+  //       .populate('owner', 'email')
+  //       .populate('staff.user', 'email role');
+      
+  //     if (!business) {
+  //       return res.status(404).json({
+  //         success: false,
+  //         message: 'Business not found'
+  //       });
+  //     }
+
+  //     return res.status(200).json({
+  //       success: true,
+  //       data: business
+  //     });
+      
+  //   } catch (error) {
+  //     return res.status(500).json({
+  //       success: false,
+  //       message: "Failed to fetch business"
+  //     });
+  //   }
+  // }
+
   static async getBusinessById(req: Request, res: Response) {
     try {
       const { businessId } = req.params;
+      const user = (req as any).user;
 
       if (!mongoose.Types.ObjectId.isValid(businessId)) {
         return res.status(400).json({
@@ -55,9 +135,8 @@ export class BusinessController {
       }
 
       const business = await Business.findById(businessId)
-        .populate('owner', 'email')
-        .populate('staff.user', 'email role');
-      
+        .populate('owner', 'email');
+
       if (!business) {
         return res.status(404).json({
           success: false,
@@ -65,18 +144,35 @@ export class BusinessController {
         });
       }
 
+      // Fetch staff for this business
+      const staff = await BusinessStaff.find({
+        business: business._id,
+        isActive: true
+      })
+      .populate('user', 'email role');
+
+      // Determine current user role
+      const myStaff = staff.find(
+        (s) => String(s.user._id) === String(user._id)
+      );
+
       return res.status(200).json({
         success: true,
-        data: business
+        data: {
+          ...business.toObject(),
+          staff,
+          myRole: myStaff?.role || null
+        }
       });
-      
-    } catch (error) {
+
+    } catch (error: any) {
       return res.status(500).json({
         success: false,
-        message: "Failed to fetch business"
+        message: error.message || "Failed to fetch business"
       });
     }
   }
+
 
   static async updateBusiness(req: Request, res: Response) {
     try {

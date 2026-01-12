@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { AppError } from '../../utils/app-error';
 import { notificationQueue } from '../../queues';
 import { StaffInviteJob } from '../../queues/types';
+import { email } from 'zod';
 
 export class BusinessStaffService {
   static async addStaff(
@@ -23,8 +24,11 @@ export class BusinessStaffService {
   }
 
   static async listStaff(businessId: Types.ObjectId) {
-    return BusinessStaff.find({ business: businessId })
-      .populate('user', 'phoneNumber role')
+    return BusinessStaff.find({ business: businessId, isActive: true })
+      .populate({
+        path: 'user', 
+        select: 'first_name last_name role email'
+      })
       .sort({ createdAt: -1 });
   }
 
@@ -87,7 +91,14 @@ export class BusinessStaffService {
     await notificationQueue.add('staff-invite', {
       email,
       businessName: business.name,
-      inviteLink
+      inviteLink,
+      role,
+      expiresAt: invite.expiresAt.toLocaleDateString('en-NG', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'Africa/Lagos'
+      })
     } satisfies StaffInviteJob);
 
     console.log(`[QUEUE] Staff invite job added for ${email}`);
@@ -126,5 +137,96 @@ export class BusinessStaffService {
     await invite.save();
 
     return staff;
+  }
+
+  static async getInvites(
+    businessId: Types.ObjectId,
+    status?: string
+  ) {
+    return BusinessInvite.find({
+      business: businessId,
+      ...(status && { status }),
+    }).sort({ createdAt: -1 });
+  }
+
+  static async resendInvite(
+    businessId: Types.ObjectId,
+    invitedId: Types.ObjectId
+  ) {
+    const invite = await BusinessInvite.findOne({
+      _id: invitedId,
+      business: businessId,
+      status: 'pending',
+    }).populate('business');
+
+    if (!invite) {
+      throw new AppError('Invite not found', 404);
+    }
+
+    const inviteLink = `${process.env.FRONTEND_URL}/invite/accept?token=${invite.token}`;
+
+    await notificationQueue.add('staff-invite', {
+      email: invite.email,
+      businessName: (invite.business as any).name,
+      inviteLink,
+      role: invite.role,
+      expiresAt: invite.expiresAt.toLocaleDateString('en-NG', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'Africa/Lagos',
+      }),
+    });
+  }
+
+  static async cancelInvite(
+    businessId: Types.ObjectId,
+    inviteId: Types.ObjectId
+  ) {
+    const invite = await BusinessInvite.findOneAndUpdate(
+      {
+        _id: inviteId,
+        business: businessId,
+        status: 'pending',
+      },
+      { status: 'expired' },
+      { new: true }
+    );
+
+    if (!invite) {
+      throw new AppError('Invite not found', 404);
+    }
+
+    return invite;
+  }
+
+  static async validateInvite(token: string) {
+    const invite = await BusinessInvite
+      .findOne({ token })
+      .populate('business', 'name');
+    
+    if (!invite) {
+      throw new AppError('Invite not found', 404);
+    }
+
+    if (invite.status === 'accepted') {
+      return { status: 'accepted' };
+    }
+
+    if (invite.status !== 'pending') {
+      return { status: 'expired' };
+    }
+
+    if (invite.expiresAt < new Date()) {
+      return { status: 'expired' };
+    }
+
+    return {
+      status: 'pending',
+      email: invite.email,
+      role: invite.role,
+      businessName: (invite.business as any).name,
+      expiresAt: invite.expiresAt
+    };
   }
 }
